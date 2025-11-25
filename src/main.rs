@@ -15,7 +15,7 @@ use poise::{
         async_trait, colours::css::DANGER,
     },
 };
-use poise_error::anyhow;
+use poise_error::anyhow::{self, Context};
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt as _, util::SubscriberInitExt as _};
@@ -34,6 +34,7 @@ impl serenity::EventHandler for EventHandler {
         let result: anyhow::Result<_> = async move {
             if new_message.channel_id == COUNTING_CHANNEL_ID {
                 let mut data = Data::get();
+                let mut data_changed = false;
 
                 if !new_message.author.bot {
                     let mut eval_context = HashMapContext::<DefaultNumericTypes>::new();
@@ -50,7 +51,10 @@ impl serenity::EventHandler for EventHandler {
                                 .last_user_id
                                 .is_none_or(|last_user_id| new_message.author.id != last_user_id)
                         {
-                            new_message.react(&ctx, '✅').await?;
+                            new_message
+                                .react(&ctx, '✅')
+                                .await
+                                .context("failed to react to message")?;
                             info!(
                                 "{} correctly counted {eval_result}",
                                 new_message.author.tag(),
@@ -64,12 +68,17 @@ impl serenity::EventHandler for EventHandler {
 
                             *data.leaderboard.entry(new_message.author.id).or_default() += 1;
                         } else {
-                            new_message.react(&ctx, '❌').await?;
+                            new_message
+                                .react(&ctx, '❌')
+                                .await
+                                .context("failed to react to message")?;
                             new_message
                                 .member(&ctx)
-                                .await?
+                                .await
+                                .context("failed to get member")?
                                 .add_role(&ctx, DUMBASS_ROLE_ID)
-                                .await?;
+                                .await
+                                .context("failed to add dumbass role to member")?;
                             new_message
                                 .channel_id
                                 .send_message(
@@ -104,7 +113,8 @@ impl serenity::EventHandler for EventHandler {
                                             .color(DANGER),
                                     ),
                                 )
-                                .await?;
+                                .await
+                                .context("failed to send failure message")?;
                             data.dumbass_role_timeouts.insert(
                                 new_message.author.id,
                                 (UNIX_EPOCH.elapsed().expect(UNIX_EPOCH_ELAPSED_ERROR)
@@ -116,12 +126,17 @@ impl serenity::EventHandler for EventHandler {
                         }
 
                         data.last_user_id = Some(new_message.author.id);
+                        data_changed = true;
                     }
                 }
 
-                if data.sticky_message_id.is_none_or(|sticky_message_id| new_message.id != sticky_message_id) {
+                if data.sticky_message_id.is_none_or(|sticky_message_id| {
+                    new_message.id != sticky_message_id
+                }) {
                     if let Some(sticky_message_id) = data.sticky_message_id {
-                        COUNTING_CHANNEL_ID.delete_message(&ctx, sticky_message_id).await?;
+                        COUNTING_CHANNEL_ID.delete_message(&ctx, sticky_message_id)
+                            .await
+                            .context("failed to delete old sticky message")?;
                     }
 
                     let sticky_message = COUNTING_CHANNEL_ID.send_message(
@@ -141,11 +156,14 @@ impl serenity::EventHandler for EventHandler {
                                     at the bottom of the channel."
                                 ))
                         ),
-                    ).await?;
+                    ).await.context("failed to send sticky message")?;
 
                     data.sticky_message_id = Some(sticky_message.id);
+                    data_changed = true;
+                }
 
-                    data.set()?;
+                if data_changed {
+                    data.set().context("failed to set data")?;
                 }
             }
 

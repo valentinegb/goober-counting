@@ -128,7 +128,7 @@ impl serenity::EventHandler for EventHandler {
                             .description(
                                 "**Rules**\n\
                                 1. Do not count twice in a row.\n\
-                                **Math**
+                                **Math**\n\
                                 You can read what kind of math is supported \
                                 [here](https://docs.rs/evalexpr/latest/evalexpr/index.html#features)."
                             )

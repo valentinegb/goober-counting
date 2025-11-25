@@ -34,7 +34,6 @@ impl serenity::EventHandler for EventHandler {
         let result: anyhow::Result<_> = async move {
             if new_message.channel_id == COUNTING_CHANNEL_ID {
                 let mut data = Data::get();
-                let mut data_changed = false;
 
                 if !new_message.author.bot {
                     let mut eval_context = HashMapContext::<DefaultNumericTypes>::new();
@@ -126,17 +125,12 @@ impl serenity::EventHandler for EventHandler {
                         }
 
                         data.last_user_id = Some(new_message.author.id);
-                        data_changed = true;
                     }
-                }
 
-                if data.sticky_message_id.is_none_or(|sticky_message_id| {
-                    new_message.id != sticky_message_id
-                }) {
                     if let Some(sticky_message_id) = data.sticky_message_id {
                         COUNTING_CHANNEL_ID.delete_message(&ctx, sticky_message_id)
                             .await
-                            .context("failed to delete old sticky message")?;
+                            .ok();
                     }
 
                     let sticky_message = COUNTING_CHANNEL_ID.send_message(
@@ -159,10 +153,7 @@ impl serenity::EventHandler for EventHandler {
                     ).await.context("failed to send sticky message")?;
 
                     data.sticky_message_id = Some(sticky_message.id);
-                    data_changed = true;
-                }
 
-                if data_changed {
                     data.set().context("failed to set data")?;
                 }
             }

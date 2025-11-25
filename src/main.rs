@@ -32,116 +32,121 @@ struct EventHandler;
 impl serenity::EventHandler for EventHandler {
     async fn message(&self, ctx: serenity::Context, new_message: Message) {
         let result: anyhow::Result<_> = async move {
-            if new_message.channel_id == COUNTING_CHANNEL_ID && !new_message.author.bot {
+            if new_message.channel_id == COUNTING_CHANNEL_ID {
                 let mut data = Data::get();
-                let mut eval_context = HashMapContext::<DefaultNumericTypes>::new();
 
-                if let Ok(eval_result) = eval_number_with_context_mut(
-                    &new_message.content.replace('\\', ""),
-                    &mut eval_context,
-                ) {
+                if !new_message.author.bot {
+                    let mut eval_context = HashMapContext::<DefaultNumericTypes>::new();
 
-                    let eval_result = eval_result.trunc() as i64;
+                    if let Ok(eval_result) = eval_number_with_context_mut(
+                        &new_message.content.replace('\\', ""),
+                        &mut eval_context,
+                    ) {
 
-                    if eval_result == data.last_number + 1
-                        && data
-                            .last_user_id
-                            .is_none_or(|last_user_id| new_message.author.id != last_user_id)
-                    {
-                        new_message.react(&ctx, '✅').await?;
-                        info!(
-                            "{} correctly counted {eval_result}",
-                            new_message.author.tag(),
-                        );
+                        let eval_result = eval_result.trunc() as i64;
 
-                        data.last_number += 1;
+                        if eval_result == data.last_number + 1
+                            && data
+                                .last_user_id
+                                .is_none_or(|last_user_id| new_message.author.id != last_user_id)
+                        {
+                            new_message.react(&ctx, '✅').await?;
+                            info!(
+                                "{} correctly counted {eval_result}",
+                                new_message.author.tag(),
+                            );
 
-                        if data.last_number > data.high_score {
-                            data.high_score = data.last_number;
+                            data.last_number += 1;
+
+                            if data.last_number > data.high_score {
+                                data.high_score = data.last_number;
+                            }
+
+                            *data.leaderboard.entry(new_message.author.id).or_default() += 1;
+                        } else {
+                            new_message.react(&ctx, '❌').await?;
+                            new_message
+                                .member(&ctx)
+                                .await?
+                                .add_role(&ctx, DUMBASS_ROLE_ID)
+                                .await?;
+                            new_message
+                                .channel_id
+                                .send_message(
+                                    &ctx,
+                                    CreateMessage::new().reference_message(&new_message).embed(
+                                        CreateEmbed::new()
+                                            .title("Count Reset")
+                                            .description(format!(
+                                                "{} messed up the count by counting {}.",
+                                                new_message.author.mention(),
+                                                if eval_result != data.last_number + 1 {
+                                                    info!(
+                                                        "{} incorrectly counted {eval_result}",
+                                                        new_message.author.tag(),
+                                                    );
+
+                                                    format!(
+                                                        "wrong. The next number was supposed to be **{}**",
+                                                        data.last_number + 1,
+                                                    )
+                                                } else
+                                                // if same user as last count
+                                                {
+                                                    info!(
+                                                        "{} counted twice in a row",
+                                                        new_message.author.tag(),
+                                                    );
+
+                                                    "twice in a row".to_string()
+                                                },
+                                            ))
+                                            .color(DANGER),
+                                    ),
+                                )
+                                .await?;
+                            data.dumbass_role_timeouts.insert(
+                                new_message.author.id,
+                                (UNIX_EPOCH.elapsed().expect(UNIX_EPOCH_ELAPSED_ERROR)
+                                    + DUMBASS_ROLE_TIMEOUT_LEN)
+                                    .as_secs(),
+                            );
+
+                            data.last_number = 0;
                         }
 
-                        *data.leaderboard.entry(new_message.author.id).or_default() += 1;
-                    } else {
-                        new_message.react(&ctx, '❌').await?;
-                        new_message
-                            .member(&ctx)
-                            .await?
-                            .add_role(&ctx, DUMBASS_ROLE_ID)
-                            .await?;
-                        new_message
-                            .channel_id
-                            .send_message(
-                                &ctx,
-                                CreateMessage::new().reference_message(&new_message).embed(
-                                    CreateEmbed::new()
-                                        .title("Count Reset")
-                                        .description(format!(
-                                            "{} messed up the count by counting {}.",
-                                            new_message.author.mention(),
-                                            if eval_result != data.last_number + 1 {
-                                                info!(
-                                                    "{} incorrectly counted {eval_result}",
-                                                    new_message.author.tag(),
-                                                );
+                        data.last_user_id = Some(new_message.author.id);
+                    }
+                }
 
-                                                format!(
-                                                    "wrong. The next number was supposed to be **{}**",
-                                                    data.last_number + 1,
-                                                )
-                                            } else
-                                            // if same user as last count
-                                            {
-                                                info!(
-                                                    "{} counted twice in a row",
-                                                    new_message.author.tag(),
-                                                );
-
-                                                "twice in a row".to_string()
-                                            },
-                                        ))
-                                        .color(DANGER),
-                                ),
-                            )
-                            .await?;
-                        data.dumbass_role_timeouts.insert(
-                            new_message.author.id,
-                            (UNIX_EPOCH.elapsed().expect(UNIX_EPOCH_ELAPSED_ERROR)
-                                + DUMBASS_ROLE_TIMEOUT_LEN)
-                                .as_secs(),
-                        );
-
-                        data.last_number = 0;
+                if data.sticky_message_id.is_none_or(|sticky_message_id| new_message.id != sticky_message_id) {
+                    if let Some(sticky_message_id) = data.sticky_message_id {
+                        COUNTING_CHANNEL_ID.delete_message(&ctx, sticky_message_id).await?;
                     }
 
-                    data.last_user_id = Some(new_message.author.id);
+                    let sticky_message = COUNTING_CHANNEL_ID.send_message(
+                        ctx,
+                        CreateMessage::new().embed(
+                            CreateEmbed::new()
+                                .title("Info")
+                                .description(
+                                    "**Rules**\n\
+                                    1. Do not count twice in a row.\n\
+                                    **Math**\n\
+                                    You can read what kind of math is supported \
+                                    [here](https://docs.rs/evalexpr/latest/evalexpr/index.html#features)."
+                                )
+                                .footer(CreateEmbedFooter::new(
+                                    "This is a sticky message, it will resend itself to make sure it's \
+                                    at the bottom of the channel."
+                                ))
+                        ),
+                    ).await?;
+
+                    data.sticky_message_id = Some(sticky_message.id);
+
+                    data.set()?;
                 }
-
-                if let Some(sticky_message_id) = data.sticky_message_id {
-                    COUNTING_CHANNEL_ID.delete_message(&ctx, sticky_message_id).await?;
-                }
-
-                let sticky_message = COUNTING_CHANNEL_ID.send_message(
-                    ctx,
-                    CreateMessage::new().embed(
-                        CreateEmbed::new()
-                            .title("Info")
-                            .description(
-                                "**Rules**\n\
-                                1. Do not count twice in a row.\n\
-                                **Math**\n\
-                                You can read what kind of math is supported \
-                                [here](https://docs.rs/evalexpr/latest/evalexpr/index.html#features)."
-                            )
-                            .footer(CreateEmbedFooter::new(
-                                "This is a sticky message, it will resend itself to make sure it's \
-                                at the bottom of the channel."
-                            ))
-                    ),
-                ).await?;
-
-                data.sticky_message_id = Some(sticky_message.id);
-
-                data.set()?;
             }
 
             Ok(())

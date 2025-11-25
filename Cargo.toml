@@ -2,5 +2,18 @@
 name = "goober-counting"
 version = "0.1.0"
 edition = "2024"
+# Latest version available on nixos-25.05
+rust-version = "1.89"
 
 [dependencies]
+ciborium = "0.2.2"
+directories = "6.0.0"
+dotenvy = "0.15.7"
+evalexpr = "13.0.0"
+poise = "0.6.1"
+poise_error = "1.6.0"
+serde = { version = "1.0.228", features = ["derive"] }
+tokio = { version = "1.48.0", features = ["rt-multi-thread", "macros"] }
+tracing = "0.1.41"
+tracing-journald = "0.3.1"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }

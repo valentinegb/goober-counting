@@ -273,13 +273,14 @@ async fn dumbass_role_loop(ctx: serenity::Context) {
     }
 }
 
-/// Shows how many numbers people have counted.
+/// Shows how many numbers the top ten people have counted.
 #[command(slash_command)]
 async fn leaderboard(ctx: poise_error::Context<'_>) -> anyhow::Result<()> {
     let mut leaderboard: Vec<(UserId, u64)> = Data::get().leaderboard.into_iter().collect();
     let mut description = String::new();
 
     leaderboard.sort_by(|(_, a), (_, b)| b.cmp(a));
+    leaderboard = leaderboard.into_iter().take(10).collect();
 
     for (user_id, numbers) in leaderboard {
         description += &format!("1. {}: {numbers}\n", user_id.mention());

@@ -11,7 +11,7 @@ use poise::{
     CreateReply, command,
     serenity_prelude::{
         self as serenity, ChannelId, CreateAllowedMentions, CreateEmbed, CreateMessage,
-        GatewayIntents, GuildId, Mentionable, Message, MessageId, RoleId, UserId, async_trait,
+        GatewayIntents, GuildId, Mentionable, Message, RoleId, UserId, async_trait,
         colours::css::DANGER,
     },
 };
@@ -146,7 +146,6 @@ struct Data {
     high_score: i64,
     leaderboard: HashMap<UserId, u64>,
     dumbass_role_timeouts: HashMap<UserId, u64>,
-    sticky_message_id: Option<MessageId>,
 }
 
 impl Data {

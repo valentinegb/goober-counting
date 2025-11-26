@@ -9,7 +9,8 @@ rust-version = "1.89"
 ciborium = "0.2.2"
 directories = "6.0.0"
 dotenvy = "0.15.7"
-evalexpr = "13.0.0"
+# This revision has support for binary and octal, but hasn't been included in a release yet as of writing.
+evalexpr = { git = "https://github.com/ISibboI/evalexpr.git", rev = "e5eecfe8248b7eb6ce7a860b352d7ed966a510ef" }
 poise = "0.6.1"
 poise_error = "1.6.0"
 serde = { version = "1.0.228", features = ["derive"] }

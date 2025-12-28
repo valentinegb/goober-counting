@@ -45,7 +45,7 @@
                 after = [ "network.target" ];
                 environment.GOOBER_COUNTING_DISCORD_TOKEN = config.services.goober-counting.token;
                 serviceConfig = {
-                  ExecStart = lib.getExe self.packages.${pkgs.system}.goober-counting;
+                  ExecStart = lib.getExe self.packages.${pkgs.stdenv.hostPlatform.system}.goober-counting;
                   Restart = "always";
                 };
               };
